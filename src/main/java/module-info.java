@@ -7,7 +7,10 @@ open module org.github.thomasfox.weatherdataanalyzer
   requires spring.boot.autoconfigure;
   requires spring.boot;
   requires spring.web;
+  requires spring.core;
   requires lombok;
   requires spring.data.jpa;
   requires java.persistence;
+  requires jfreechart;
+  requires java.net.http;
 }
