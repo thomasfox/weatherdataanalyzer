@@ -24,7 +24,7 @@ import com.github.thomasfox.weatherdataanalyzer.service.AverageService;
 import com.github.thomasfox.weatherdataanalyzer.service.ChartService;
 import com.github.thomasfox.weatherdataanalyzer.service.DateTimeService;
 import com.github.thomasfox.weatherdataanalyzer.service.WindDataService;
-import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRangeWithData;
 
 import lombok.AllArgsConstructor;
 
@@ -32,7 +32,9 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class FftController
 {
-  private static final Long AVERAGE_INTERVAL_MILLIS = 60L * 60L * 1000L;
+  private static final long AVERAGE_INTERVAL_MILLIS = 60L * 60L * 1000L;
+
+  private static final double FFT_FRACTION_TO_DISPLAY = 0.2d;
 
   private final WindDataService windDataService;
 
@@ -53,18 +55,18 @@ public class FftController
   {
     Date from = dateTimeService.parse(fromString);
     Date to = dateTimeService.parse(toString);
-    List<List<TimeData>> speedPoints;
+    List<TimeRangeWithData> dataIntervals;
     if (speedFrom != null || speedTo != null || directionFrom != null || directionTo != null)
     {
-      speedPoints = getPointList(from, to, speedFrom, speedTo, directionFrom, directionTo);
+      dataIntervals = getPointList(from, to, speedFrom, speedTo, directionFrom, directionTo);
     }
     else
     {
-      speedPoints = getPointList(from, to);
+      dataIntervals = getPointList(from, to);
     }
     List<Double> frequencyAmplitudes = new ArrayList<>();
     Integer amplitudesSize = null;
-    for (List<TimeData> singleIntervalData : speedPoints)
+    for (TimeRangeWithData singleIntervalData : dataIntervals)
     {
       List<Double> intervalResult = getFrequencyAmplitudes(singleIntervalData);
       if (amplitudesSize == null)
@@ -74,7 +76,9 @@ public class FftController
       else if (amplitudesSize != intervalResult.size())
       {
         throw new IllegalStateException("fft result with size " + intervalResult.size()
-            + " cannot be added to result with size " + amplitudesSize);
+            + " for interval [" + new Date(singleIntervalData.getRange().getStart())
+            + "," + new Date(singleIntervalData.getRange().getEnd())
+            + "[ cannot be added to result with size " + amplitudesSize);
       }
       int i = 0;
       for (Double amplitude : intervalResult)
@@ -92,13 +96,11 @@ public class FftController
     }
     XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
     Double frequencyFrom = null;
-    Double frequencyTo = null;
     if (speedFrom != null && speedTo != null)
     {
       frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
-      frequencyTo = 0.1d;
     }
-    JFreeChart lineChart = createChartFromData(dataset, frequencyFrom, frequencyTo);
+    JFreeChart lineChart = createChartFromData(dataset, frequencyFrom, FFT_FRACTION_TO_DISPLAY);
     return chartService.createReponseEntityFromChart(lineChart);
   }
 
@@ -128,14 +130,14 @@ public class FftController
     return lineChart;
   }
 
-  public List<List<TimeData>> getPointList(Date from, Date to)
+  public List<TimeRangeWithData> getPointList(Date from, Date to)
   {
-    List<List<TimeData>> result = new ArrayList<>();
+    List<TimeRangeWithData> result = new ArrayList<>();
     result.add(windDataService.getSpeedPoints(from, to));
     return result;
   }
 
-  public List<List<TimeData>> getPointList(
+  public List<TimeRangeWithData> getPointList(
       Date from,
       Date to,
       Double speedFrom,
@@ -169,7 +171,7 @@ public class FftController
         AVERAGE_INTERVAL_MILLIS);
   }
 
-  private List<Double> getFrequencyAmplitudes(List<TimeData> speedPoints)
+  private List<Double> getFrequencyAmplitudes(TimeRangeWithData speedPoints)
   {
     double[] fftInput = createArrayForFftWithDataForEachSecond(speedPoints);
     FastFourierTransformer transformer = new FastFourierTransformer(DftNormalization.STANDARD);
@@ -184,7 +186,7 @@ public class FftController
 
   XYDataset getFFtResultDataset(List<Double> rawFftResult)
   {
-    int displayedSize = rawFftResult.size() / 2;
+    int displayedSize = (int) (rawFftResult.size() * FFT_FRACTION_TO_DISPLAY);
     double[][] datasetData = new double[2][displayedSize];
     for (int i = 0; i < displayedSize; i++)
     {
@@ -197,12 +199,12 @@ public class FftController
     return dataset;
  }
 
-  private double[] createArrayForFftWithDataForEachSecond(List<TimeData> speedPoints)
+  private double[] createArrayForFftWithDataForEachSecond(TimeRangeWithData data)
   {
-    long start = speedPoints.get(0).getTimestamp();
-    long end = speedPoints.get(speedPoints.size() - 1).getTimestamp();
+    long start = data.getRange().getStart();
+    long end = data.getRange().getEnd();
     int arraySize = calculateFftArraySize(start, end);
-    double[] fftInput = fillFftInputArray(speedPoints, start, arraySize);
+    double[] fftInput = fillFftInputArray(data, start, arraySize);
     return fftInput;
   }
 
@@ -220,18 +222,18 @@ public class FftController
     return arraySize;
   }
 
-  private double[] fillFftInputArray(List<TimeData> speedPoints, long start, int arraySize)
+  private double[] fillFftInputArray(TimeRangeWithData data, long start, int arraySize)
   {
     double[] fftInput = new double[arraySize];
     int speedPointIndex = 0;
     for (int i = 0; i < arraySize; i++)
     {
-      while (speedPointIndex < speedPoints.size() - 1
-          && speedPoints.get(speedPointIndex + 1).getTimestamp() <= i * 1000 + start)
+      while (speedPointIndex < data.getData().size() - 1
+          && data.getData().get(speedPointIndex + 1).getTimestamp() <= i * 1000 + start)
       {
         speedPointIndex++;
       }
-      fftInput[i] = speedPoints.get(speedPointIndex).getValue();
+      fftInput[i] = data.getData().get(speedPointIndex).getValue();
     }
     return fftInput;
   }

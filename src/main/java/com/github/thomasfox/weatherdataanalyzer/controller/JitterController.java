@@ -16,6 +16,7 @@ import com.github.thomasfox.weatherdataanalyzer.service.ChartService;
 import com.github.thomasfox.weatherdataanalyzer.service.DateTimeService;
 import com.github.thomasfox.weatherdataanalyzer.service.WindDataService;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRangeWithData;
 
 import lombok.AllArgsConstructor;
 
@@ -39,11 +40,11 @@ public class JitterController
     Date from = dateTimeService.parse(fromString);
     Date to = dateTimeService.parse(toString);
 
-    List<TimeData> speedPoints = windDataService.getSpeedPoints(from, to);
+    TimeRangeWithData speedPoints = windDataService.getSpeedPoints(from, to);
 
     List<Integer> counts = new ArrayList<>();
     Long lastX = null;
-    for (TimeData point : speedPoints)
+    for (TimeData point : speedPoints.getData())
     {
       long x = point.getTimestamp();
       if (lastX != null)

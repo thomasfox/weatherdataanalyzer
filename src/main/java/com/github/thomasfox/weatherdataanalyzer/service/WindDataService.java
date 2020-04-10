@@ -2,7 +2,9 @@ package com.github.thomasfox.weatherdataanalyzer.service;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,7 @@ import com.github.thomasfox.weatherdataanalyzer.repository.WindRepository;
 import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRange;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRangeWithData;
 
 import lombok.AllArgsConstructor;
 
@@ -76,18 +79,18 @@ public class WindDataService
     return windRepository.getAverageDirection(start, end);
   }
 
-  public List<TimeData> getSpeedPoints(Date start, Date end)
+  public TimeRangeWithData getSpeedPoints(Date start, Date end)
   {
     List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqual(start, end);
-    List<TimeData> result = new ArrayList<>();
+    List<TimeData> resultData = new ArrayList<>();
     for (Wind wind : dataPoints)
     {
-      result.add(wind.getSpeedTimeData());
+      resultData.add(wind.getSpeedTimeData());
     }
-    return result;
+    return new TimeRangeWithData(start, end, resultData);
   }
 
-  public List<List<TimeData>> getSpeedPointIntervalsWithSpeedIn(
+  public List<TimeRangeWithData> getSpeedPointIntervalsWithSpeedIn(
       Date start,
       Date end,
       double lowerSpeedBoundary,
@@ -105,22 +108,22 @@ public class WindDataService
         upperDirectionBoundary,
         averageMillis,
         false);
-    List<List<Wind>> windIntervals = new ArrayList<>();
+    Map<TimeRange, List<Wind>> windIntervals = new LinkedHashMap<>();
     for (TimeRange timeRange: timeRanges)
     {
-      windIntervals.add(windRepository.findByTimeGreaterThanAndTimeLessThanEqual(
+      windIntervals.put(timeRange, windRepository.findByTimeGreaterThanAndTimeLessThanEqual(
           new Date(timeRange.getStart()),
           new Date(timeRange.getEnd())));
     }
-    List<List<TimeData>> result = new ArrayList<>();
-    for (List<Wind> singleWindInterval : windIntervals)
+    List<TimeRangeWithData> result = new ArrayList<>();
+    for (Map.Entry<TimeRange, List<Wind>> singleWindInterval : windIntervals.entrySet())
     {
       List<TimeData> singleResultInterval = new ArrayList<>();
-      for (Wind wind : singleWindInterval)
+      for (Wind wind : singleWindInterval.getValue())
       {
         singleResultInterval.add(wind.getSpeedTimeData());
       }
-      result.add(singleResultInterval);
+      result.add(new TimeRangeWithData(singleWindInterval.getKey(), singleResultInterval));
     }
     return result;
   }
