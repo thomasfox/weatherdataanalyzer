@@ -37,7 +37,7 @@ public class TimeRange
     this.end = end.getTime();
   }
 
-  public long getDuration()
+  public long getDurationMillis()
   {
     return end - start;
   }

@@ -80,6 +80,17 @@ public class WindDataService
     return windRepository.getAverageDirection(start, end);
   }
 
+  public List<TimeRangeWithData> getDataForTimeRangeInList(
+      Date from,
+      Date to,
+      Function<Wind, TimeData> windConverter)
+  {
+    List<TimeRangeWithData> result = new ArrayList<>();
+    result.add(getDataForTimeRange(from, to, windConverter));
+    return result;
+  }
+
+
   public TimeRangeWithData getDataForTimeRange(Date start, Date end, Function<Wind, TimeData> windConverter)
   {
     List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqual(start, end);
@@ -94,13 +105,29 @@ public class WindDataService
   public List<TimeRangeWithData> getWithSpeedAndDirectionIn(
       Date start,
       Date end,
-      double lowerSpeedBoundary,
-      double upperSpeedBoundary,
-      double lowerDirectionBoundary,
-      double upperDirectionBoundary,
+      Double lowerSpeedBoundary,
+      Double upperSpeedBoundary,
+      Double lowerDirectionBoundary,
+      Double upperDirectionBoundary,
       long averageMillis,
       Function<Wind, TimeData> windConverter)
   {
+    if (lowerSpeedBoundary == null)
+    {
+      lowerSpeedBoundary = 0d;
+    }
+    if (upperSpeedBoundary == null)
+    {
+      upperSpeedBoundary = 1000d;
+    }
+    if (lowerDirectionBoundary == null)
+    {
+      lowerDirectionBoundary = 0d;
+    }
+    if (upperDirectionBoundary == null)
+    {
+      upperDirectionBoundary = 360d;
+    }
     List<TimeRange> timeRanges = getTimeRangesWithAverageWindSpeedAndDirectionIn(
         start,
         end,
@@ -187,4 +214,22 @@ public class WindDataService
     }
     return result;
   }
+
+  public double[] fillArrayWithDataForEachSecond(TimeRangeWithData data, int arraySize)
+  {
+    long start = data.getRange().getStart();
+    double[] fftInput = new double[arraySize];
+    int speedPointIndex = 0;
+    for (int i = 0; i < arraySize; i++)
+    {
+      while (speedPointIndex < data.getData().size() - 1
+          && data.getData().get(speedPointIndex + 1).getTimestamp() <= i * 1000 + start)
+      {
+        speedPointIndex++;
+      }
+      fftInput[i] = data.getData().get(speedPointIndex).getValue();
+    }
+    return fftInput;
+  }
+
 }

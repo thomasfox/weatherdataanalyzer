@@ -3,7 +3,6 @@ package com.github.thomasfox.weatherdataanalyzer.controller;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.function.Function;
 
 import org.apache.commons.math3.complex.Complex;
 import org.apache.commons.math3.transform.DftNormalization;
@@ -26,7 +25,6 @@ import com.github.thomasfox.weatherdataanalyzer.service.AverageService;
 import com.github.thomasfox.weatherdataanalyzer.service.ChartService;
 import com.github.thomasfox.weatherdataanalyzer.service.DateTimeService;
 import com.github.thomasfox.weatherdataanalyzer.service.WindDataService;
-import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRangeWithData;
 
 import lombok.AllArgsConstructor;
@@ -62,19 +60,20 @@ public class FftController
     Double frequencyFrom = null;
     if (speedFrom != null || speedTo != null || directionFrom != null || directionTo != null)
     {
-      dataIntervals = getWindData(
+      dataIntervals = windDataService.getWithSpeedAndDirectionIn(
           from,
           to,
           speedFrom,
           speedTo,
           directionFrom,
           directionTo,
+          AVERAGE_INTERVAL_MILLIS,
           Wind::getSpeedTimeData);
       frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
     }
     else
     {
-      dataIntervals = getWindDataForTimeRange(from, to, Wind::getSpeedTimeData);
+      dataIntervals = windDataService.getDataForTimeRangeInList(from, to, Wind::getSpeedTimeData);
     }
     List<Double> frequencyAmplitudes = calculateFrequencyAmplitudes(dataIntervals);
     XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
@@ -101,19 +100,20 @@ public class FftController
     Double frequencyFrom = null;
     if (speedFrom != null || speedTo != null || directionFrom != null || directionTo != null)
     {
-      dataIntervals = getWindData(
+      dataIntervals = windDataService.getWithSpeedAndDirectionIn(
           from,
           to,
           speedFrom,
           speedTo,
           directionFrom,
           directionTo,
+          AVERAGE_INTERVAL_MILLIS,
           Wind::getDirectionTimeData);
       frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
     }
     else
     {
-      dataIntervals = getWindDataForTimeRange(from, to, Wind::getSpeedTimeData);
+      dataIntervals = windDataService.getDataForTimeRangeInList(from, to, Wind::getSpeedTimeData);
     }
     List<Double> frequencyAmplitudes = calculateFrequencyAmplitudes(dataIntervals);
     XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
@@ -192,52 +192,6 @@ public class FftController
     return lineChart;
   }
 
-  public List<TimeRangeWithData> getWindDataForTimeRange(
-      Date from,
-      Date to,
-      Function<Wind, TimeData> windConverter)
-  {
-    List<TimeRangeWithData> result = new ArrayList<>();
-    result.add(windDataService.getDataForTimeRange(from, to, windConverter));
-    return result;
-  }
-
-  public List<TimeRangeWithData> getWindData(
-      Date from,
-      Date to,
-      Double speedFrom,
-      Double speedTo,
-      Double directionFrom,
-      Double directionTo,
-      Function<Wind, TimeData> windConverter)
-  {
-    if (speedFrom == null)
-    {
-      speedFrom = 0d;
-    }
-    if (speedTo == null)
-    {
-      speedTo = 1000d;
-    }
-    if (directionFrom == null)
-    {
-      directionFrom = 0d;
-    }
-    if (directionTo == null)
-    {
-      directionTo = 360d;
-    }
-    return windDataService.getWithSpeedAndDirectionIn(
-        from,
-        to,
-        speedFrom,
-        speedTo,
-        directionFrom,
-        directionTo,
-        AVERAGE_INTERVAL_MILLIS,
-        windConverter);
-  }
-
   private List<Double> getFrequencyAmplitudes(TimeRangeWithData speedPoints)
   {
     double[] fftInput = createArrayForFftWithDataForEachSecond(speedPoints);
@@ -262,7 +216,7 @@ public class FftController
     }
     datasetData = averageService.averageChartDataLogarithmically(datasetData, 1.05d, 5);
     final DefaultXYDataset dataset = new DefaultXYDataset();
-    dataset.addSeries("Wind speed FFT", datasetData);
+    dataset.addSeries("fft", datasetData);
     return dataset;
  }
 
@@ -271,7 +225,7 @@ public class FftController
     long start = data.getRange().getStart();
     long end = data.getRange().getEnd();
     int arraySize = calculateFftArraySize(start, end);
-    double[] fftInput = fillFftInputArray(data, start, arraySize);
+    double[] fftInput = windDataService.fillArrayWithDataForEachSecond(data, arraySize);
     return fftInput;
   }
 
@@ -287,21 +241,5 @@ public class FftController
       arraySize *= 2;
     }
     return arraySize;
-  }
-
-  private double[] fillFftInputArray(TimeRangeWithData data, long start, int arraySize)
-  {
-    double[] fftInput = new double[arraySize];
-    int speedPointIndex = 0;
-    for (int i = 0; i < arraySize; i++)
-    {
-      while (speedPointIndex < data.getData().size() - 1
-          && data.getData().get(speedPointIndex + 1).getTimestamp() <= i * 1000 + start)
-      {
-        speedPointIndex++;
-      }
-      fftInput[i] = data.getData().get(speedPointIndex).getValue();
-    }
-    return fftInput;
   }
 }
