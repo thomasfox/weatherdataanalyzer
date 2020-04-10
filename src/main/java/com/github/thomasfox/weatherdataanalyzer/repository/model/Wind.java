@@ -45,4 +45,9 @@ public class Wind
   {
     return new  TimeData(getTime().getTime(), getSpeedInKnots());
   }
+
+  public TimeData getDirectionTimeData()
+  {
+    return new  TimeData(getTime().getTime(), getDirection());
+  }
 }

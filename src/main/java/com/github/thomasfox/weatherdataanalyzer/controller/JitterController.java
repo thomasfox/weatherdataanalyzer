@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
 import com.github.thomasfox.weatherdataanalyzer.service.ChartService;
 import com.github.thomasfox.weatherdataanalyzer.service.DateTimeService;
 import com.github.thomasfox.weatherdataanalyzer.service.WindDataService;
@@ -40,7 +41,7 @@ public class JitterController
     Date from = dateTimeService.parse(fromString);
     Date to = dateTimeService.parse(toString);
 
-    TimeRangeWithData speedPoints = windDataService.getSpeedPoints(from, to);
+    TimeRangeWithData speedPoints = windDataService.getDataForTimeRange(from, to, Wind::getSpeedTimeData);
 
     List<Integer> counts = new ArrayList<>();
     Long lastX = null;

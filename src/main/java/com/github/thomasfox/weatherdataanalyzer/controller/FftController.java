@@ -3,6 +3,7 @@ package com.github.thomasfox.weatherdataanalyzer.controller;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Function;
 
 import org.apache.commons.math3.complex.Complex;
 import org.apache.commons.math3.transform.DftNormalization;
@@ -20,10 +21,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
 import com.github.thomasfox.weatherdataanalyzer.service.AverageService;
 import com.github.thomasfox.weatherdataanalyzer.service.ChartService;
 import com.github.thomasfox.weatherdataanalyzer.service.DateTimeService;
 import com.github.thomasfox.weatherdataanalyzer.service.WindDataService;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRangeWithData;
 
 import lombok.AllArgsConstructor;
@@ -45,7 +48,7 @@ public class FftController
   private final ChartService chartService;
 
   @RequestMapping(value = "/wind/speed/fft", produces="image/png")
-  public ResponseEntity<byte[]> display(
+  public ResponseEntity<byte[]> displaySpeedFft(
           @RequestParam("from") String fromString,
           @RequestParam("to") String toString,
           @RequestParam(value = "speedFrom", required = false) Double speedFrom,
@@ -56,14 +59,76 @@ public class FftController
     Date from = dateTimeService.parse(fromString);
     Date to = dateTimeService.parse(toString);
     List<TimeRangeWithData> dataIntervals;
+    Double frequencyFrom = null;
     if (speedFrom != null || speedTo != null || directionFrom != null || directionTo != null)
     {
-      dataIntervals = getPointList(from, to, speedFrom, speedTo, directionFrom, directionTo);
+      dataIntervals = getWindData(
+          from,
+          to,
+          speedFrom,
+          speedTo,
+          directionFrom,
+          directionTo,
+          Wind::getSpeedTimeData);
+      frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
     }
     else
     {
-      dataIntervals = getPointList(from, to);
+      dataIntervals = getWindDataForTimeRange(from, to, Wind::getSpeedTimeData);
     }
+    List<Double> frequencyAmplitudes = calculateFrequencyAmplitudes(dataIntervals);
+    XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
+    JFreeChart lineChart = createChartFromData(
+        dataset,
+        frequencyFrom,
+        FFT_FRACTION_TO_DISPLAY,
+        "Wind speed frequency amplitudes");
+    return chartService.createReponseEntityFromChart(lineChart);
+  }
+
+  @RequestMapping(value = "/wind/direction/fft", produces="image/png")
+  public ResponseEntity<byte[]> displayDirectionFft(
+          @RequestParam("from") String fromString,
+          @RequestParam("to") String toString,
+          @RequestParam(value = "speedFrom", required = false) Double speedFrom,
+          @RequestParam(value = "speedTo", required = false) Double speedTo,
+          @RequestParam(value = "directionFrom", required = false) Double directionFrom,
+          @RequestParam(value = "directionTo", required = false) Double directionTo)
+  {
+    Date from = dateTimeService.parse(fromString);
+    Date to = dateTimeService.parse(toString);
+    List<TimeRangeWithData> dataIntervals;
+    Double frequencyFrom = null;
+    if (speedFrom != null || speedTo != null || directionFrom != null || directionTo != null)
+    {
+      dataIntervals = getWindData(
+          from,
+          to,
+          speedFrom,
+          speedTo,
+          directionFrom,
+          directionTo,
+          Wind::getDirectionTimeData);
+      frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
+    }
+    else
+    {
+      dataIntervals = getWindDataForTimeRange(from, to, Wind::getSpeedTimeData);
+    }
+    List<Double> frequencyAmplitudes = calculateFrequencyAmplitudes(dataIntervals);
+    XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
+    JFreeChart lineChart = createChartFromData(
+        dataset,
+        frequencyFrom,
+        FFT_FRACTION_TO_DISPLAY,
+        "Wind direction frequency amplitudes");
+    return chartService.createReponseEntityFromChart(lineChart);
+  }
+
+
+  private List<Double> calculateFrequencyAmplitudes(
+      List<TimeRangeWithData> dataIntervals)
+  {
     List<Double> frequencyAmplitudes = new ArrayList<>();
     Integer amplitudesSize = null;
     for (TimeRangeWithData singleIntervalData : dataIntervals)
@@ -85,28 +150,25 @@ public class FftController
       {
         if (frequencyAmplitudes.size() <= i)
         {
-          frequencyAmplitudes.add(amplitude);
+          frequencyAmplitudes.add(amplitude / dataIntervals.size());
         }
         else
         {
-          frequencyAmplitudes.set(i, frequencyAmplitudes.get(i) + amplitude);
+          frequencyAmplitudes.set(i, frequencyAmplitudes.get(i) + (amplitude / dataIntervals.size()));
         }
         i++;
       }
     }
-    XYDataset dataset = getFFtResultDataset(frequencyAmplitudes);
-    Double frequencyFrom = null;
-    if (speedFrom != null && speedTo != null)
-    {
-      frequencyFrom = 10000d/AVERAGE_INTERVAL_MILLIS;
-    }
-    JFreeChart lineChart = createChartFromData(dataset, frequencyFrom, FFT_FRACTION_TO_DISPLAY);
-    return chartService.createReponseEntityFromChart(lineChart);
+    return frequencyAmplitudes;
   }
 
-  private JFreeChart createChartFromData(XYDataset dataset, Double frequencyFrom, Double frequencyTo)
+  private JFreeChart createChartFromData(
+      XYDataset dataset,
+      Double frequencyFrom,
+      Double frequencyTo,
+      String title)
   {
-    LogarithmicAxis xAxis = new LogarithmicAxis("Frequency");
+    LogarithmicAxis xAxis = new LogarithmicAxis("Frequency [1/s]");
     if (frequencyFrom != null || frequencyTo != null)
     {
       if (frequencyFrom == null)
@@ -126,24 +188,28 @@ public class FftController
         yAxis,
         new XYLineAndShapeRenderer(true, false));
     JFreeChart lineChart = new JFreeChart(
-        "Wind speed FFT", JFreeChart.DEFAULT_TITLE_FONT, plot, false);
+        title, JFreeChart.DEFAULT_TITLE_FONT, plot, false);
     return lineChart;
   }
 
-  public List<TimeRangeWithData> getPointList(Date from, Date to)
+  public List<TimeRangeWithData> getWindDataForTimeRange(
+      Date from,
+      Date to,
+      Function<Wind, TimeData> windConverter)
   {
     List<TimeRangeWithData> result = new ArrayList<>();
-    result.add(windDataService.getSpeedPoints(from, to));
+    result.add(windDataService.getDataForTimeRange(from, to, windConverter));
     return result;
   }
 
-  public List<TimeRangeWithData> getPointList(
+  public List<TimeRangeWithData> getWindData(
       Date from,
       Date to,
       Double speedFrom,
       Double speedTo,
       Double directionFrom,
-      Double directionTo)
+      Double directionTo,
+      Function<Wind, TimeData> windConverter)
   {
     if (speedFrom == null)
     {
@@ -161,14 +227,15 @@ public class FftController
     {
       directionTo = 360d;
     }
-    return windDataService.getSpeedPointIntervalsWithSpeedIn(
+    return windDataService.getWithSpeedAndDirectionIn(
         from,
         to,
         speedFrom,
         speedTo,
         directionFrom,
         directionTo,
-        AVERAGE_INTERVAL_MILLIS);
+        AVERAGE_INTERVAL_MILLIS,
+        windConverter);
   }
 
   private List<Double> getFrequencyAmplitudes(TimeRangeWithData speedPoints)

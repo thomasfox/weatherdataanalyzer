@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
 
@@ -79,25 +80,26 @@ public class WindDataService
     return windRepository.getAverageDirection(start, end);
   }
 
-  public TimeRangeWithData getSpeedPoints(Date start, Date end)
+  public TimeRangeWithData getDataForTimeRange(Date start, Date end, Function<Wind, TimeData> windConverter)
   {
     List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqual(start, end);
     List<TimeData> resultData = new ArrayList<>();
     for (Wind wind : dataPoints)
     {
-      resultData.add(wind.getSpeedTimeData());
+      resultData.add(windConverter.apply(wind));
     }
     return new TimeRangeWithData(start, end, resultData);
   }
 
-  public List<TimeRangeWithData> getSpeedPointIntervalsWithSpeedIn(
+  public List<TimeRangeWithData> getWithSpeedAndDirectionIn(
       Date start,
       Date end,
       double lowerSpeedBoundary,
       double upperSpeedBoundary,
       double lowerDirectionBoundary,
       double upperDirectionBoundary,
-      long averageMillis)
+      long averageMillis,
+      Function<Wind, TimeData> windConverter)
   {
     List<TimeRange> timeRanges = getTimeRangesWithAverageWindSpeedAndDirectionIn(
         start,
@@ -121,13 +123,12 @@ public class WindDataService
       List<TimeData> singleResultInterval = new ArrayList<>();
       for (Wind wind : singleWindInterval.getValue())
       {
-        singleResultInterval.add(wind.getSpeedTimeData());
+        singleResultInterval.add(windConverter.apply(wind));
       }
       result.add(new TimeRangeWithData(singleWindInterval.getKey(), singleResultInterval));
     }
     return result;
   }
-
 
   public List<TimeRange> getTimeRangesWithAverageWindSpeedAndDirectionIn(
       Date start,
