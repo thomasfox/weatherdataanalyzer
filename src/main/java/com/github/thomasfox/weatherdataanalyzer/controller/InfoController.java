@@ -11,14 +11,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @RestController
+@AllArgsConstructor
 public class InfoController
 {
   private final WindDataService windDataService;
-
-  public InfoController(WindDataService loader)
-  {
-    this.windDataService = loader;
-  }
 
   @RequestMapping("/info")
   public Info info()

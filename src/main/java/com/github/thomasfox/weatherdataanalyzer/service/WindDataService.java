@@ -6,8 +6,10 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import com.github.thomasfox.weatherdataanalyzer.service.model.Wind;
-import com.github.thomasfox.weatherdataanalyzer.service.repository.WindRepository;
+import com.github.thomasfox.weatherdataanalyzer.repository.WindRepository;
+import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRange;
 
 import lombok.AllArgsConstructor;
 
@@ -15,11 +17,6 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class WindDataService
 {
-  /**
-   * The factor converting the database wind speed number into knots.
-   */
-  private static final float WIND_SPEED_IN_KNOTS_DATABASE_FACTOR = 0.1f;
-
   private final WindRepository windRepository;
 
   public List<Wind> getAll()
@@ -52,10 +49,138 @@ public class WindDataService
    * @param start start time of the averaging interval
    * @param end end time of the averaging interval, must be larger than the start time.
    *
-   * @return the average speed in knots
+   * @return the average speed in knots, or null if no data points are within time range
    */
-  public float getAverageSpeed(Date start, Date end)
+  public Double getAverageSpeed(Date start, Date end)
   {
-    return windRepository.getAverageSpeed(start, end) * WIND_SPEED_IN_KNOTS_DATABASE_FACTOR;
+    Double rawAverageSpeed = windRepository.getAverageSpeed(start, end);
+    if (rawAverageSpeed == null)
+    {
+      return null;
+    }
+    return rawAverageSpeed * Wind.WIND_SPEED_IN_KNOTS_DATABASE_FACTOR;
+  }
+
+  /**
+   * Returns the average wind direction in degrees.
+   * The average is over data points, not over time interval
+   * (so if sample times are irregular, the average may be wrong).
+   *
+   * @param start start time of the averaging interval
+   * @param end end time of the averaging interval, must be larger than the start time.
+   *
+   * @return the average direction in degrees, or null if no data points are within time range
+   */
+  public Double getAverageDirection(Date start, Date end)
+  {
+    return windRepository.getAverageDirection(start, end);
+  }
+
+  public List<TimeData> getSpeedPoints(Date start, Date end)
+  {
+    List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqual(start, end);
+    List<TimeData> result = new ArrayList<>();
+    for (Wind wind : dataPoints)
+    {
+      result.add(wind.getSpeedTimeData());
+    }
+    return result;
+  }
+
+  public List<List<TimeData>> getSpeedPointIntervalsWithSpeedIn(
+      Date start,
+      Date end,
+      double lowerSpeedBoundary,
+      double upperSpeedBoundary,
+      double lowerDirectionBoundary,
+      double upperDirectionBoundary,
+      long averageMillis)
+  {
+    List<TimeRange> timeRanges = getTimeRangesWithAverageWindSpeedAndDirectionIn(
+        start,
+        end,
+        lowerSpeedBoundary,
+        upperSpeedBoundary,
+        lowerDirectionBoundary,
+        upperDirectionBoundary,
+        averageMillis,
+        false);
+    List<List<Wind>> windIntervals = new ArrayList<>();
+    for (TimeRange timeRange: timeRanges)
+    {
+      windIntervals.add(windRepository.findByTimeGreaterThanAndTimeLessThanEqual(
+          new Date(timeRange.getStart()),
+          new Date(timeRange.getEnd())));
+    }
+    List<List<TimeData>> result = new ArrayList<>();
+    for (List<Wind> singleWindInterval : windIntervals)
+    {
+      List<TimeData> singleResultInterval = new ArrayList<>();
+      for (Wind wind : singleWindInterval)
+      {
+        singleResultInterval.add(wind.getSpeedTimeData());
+      }
+      result.add(singleResultInterval);
+    }
+    return result;
+  }
+
+
+  public List<TimeRange> getTimeRangesWithAverageWindSpeedAndDirectionIn(
+      Date start,
+      Date end,
+      double lowerSpeedBoundary,
+      double upperSpeedBoundary,
+      double lowerDirectionBoundary,
+      double upperDirectionBoundary,
+      long averageMillis,
+      boolean collapseAdjoiningIntervals)
+  {
+    if (averageMillis <=0 )
+    {
+      throw new IllegalArgumentException("averageMillis must be larger than 0");
+    }
+    if (lowerSpeedBoundary >= upperSpeedBoundary )
+    {
+      throw new IllegalArgumentException("upperSpeedBound must be larger than lowerSpeedBound");
+    }
+    if (lowerDirectionBoundary >= upperDirectionBoundary )
+    {
+      throw new IllegalArgumentException("upperDirectionBoundary must be larger than lowerDirectionBoundary");
+    }
+    if ((end.getTime() - start.getTime()) / averageMillis > 10000)
+    {
+      throw new IllegalArgumentException(
+          "too many intervals: " + ((end.getTime() - start.getTime()) / averageMillis));
+    }
+
+    List<TimeRange> result = new ArrayList<>();
+    long intervalStartMillis = start.getTime();
+    long lastAddedIntervalEndMillis = 0L;
+    while (intervalStartMillis < end.getTime())
+    {
+      Double averageSpeed = getAverageSpeed(
+          new Date(intervalStartMillis),
+          new Date(intervalStartMillis + averageMillis));
+      Double averageDirection = getAverageDirection(
+          new Date(intervalStartMillis),
+          new Date(intervalStartMillis + averageMillis));
+      if (averageSpeed != null && averageDirection != null
+          && averageSpeed >= lowerSpeedBoundary && averageSpeed < upperSpeedBoundary
+          && averageDirection >= lowerDirectionBoundary && averageDirection < upperDirectionBoundary)
+      {
+        if (lastAddedIntervalEndMillis == intervalStartMillis && collapseAdjoiningIntervals)
+        {
+          result.get(result.size() - 1).setEnd(intervalStartMillis + averageMillis);
+        }
+        else
+        {
+          result.add(new TimeRange(intervalStartMillis, intervalStartMillis + averageMillis));
+        }
+        lastAddedIntervalEndMillis = intervalStartMillis + averageMillis;
+      }
+      intervalStartMillis += averageMillis;
+    }
+    return result;
   }
 }

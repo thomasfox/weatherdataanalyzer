@@ -13,4 +13,5 @@ open module org.github.thomasfox.weatherdataanalyzer
   requires java.persistence;
   requires jfreechart;
   requires java.net.http;
+  requires commons.math3;
 }

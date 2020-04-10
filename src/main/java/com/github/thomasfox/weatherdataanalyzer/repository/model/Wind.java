@@ -1,9 +1,11 @@
-package com.github.thomasfox.weatherdataanalyzer.service.model;
+package com.github.thomasfox.weatherdataanalyzer.repository.model;
 
 import java.util.Date;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
+
+import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
 
 import lombok.Data;
 
@@ -11,6 +13,11 @@ import lombok.Data;
 @Entity
 public class Wind
 {
+  /**
+   * The factor converting the database wind speed number into knots.
+   */
+  public static final double WIND_SPEED_IN_KNOTS_DATABASE_FACTOR = 0.1d;
+
   @Id
   private int id;
 
@@ -31,6 +38,11 @@ public class Wind
 
   public double getSpeedInKnots()
   {
-    return (speed) / 10d;
+    return (speed) * WIND_SPEED_IN_KNOTS_DATABASE_FACTOR;
+  }
+
+  public TimeData getSpeedTimeData()
+  {
+    return new  TimeData(getTime().getTime(), getSpeedInKnots());
   }
 }
