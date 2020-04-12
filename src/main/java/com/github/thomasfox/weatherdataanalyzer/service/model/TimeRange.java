@@ -41,4 +41,14 @@ public class TimeRange
   {
     return end - start;
   }
+
+  public Date getStartAsDate()
+  {
+    return new Date(start);
+  }
+
+  public Date getEndAsDate()
+  {
+    return new Date(end);
+  }
 }

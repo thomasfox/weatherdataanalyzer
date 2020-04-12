@@ -37,4 +37,15 @@ public class ChartService
     ResponseEntity<byte[]> responseEntity = new ResponseEntity<>(image.toByteArray(), HttpStatus.OK);
     return responseEntity;
   }
+
+  public double[][] convertToDatasetData(double[] valuesEachSecond)
+  {
+    double[][] datasetData = new double[2][valuesEachSecond.length];
+    for (int i = 0; i < valuesEachSecond.length; i++)
+    {
+      datasetData[0][i] = i;
+      datasetData[1][i] = valuesEachSecond[i];
+    }
+    return datasetData;
+  }
 }

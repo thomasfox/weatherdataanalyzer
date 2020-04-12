@@ -18,7 +18,7 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class TimeIntervalController
 {
-  private static final Long TEN_MINUTES_IN_MILLIS = 10L * 60L * 1000L;
+  private static final Long TEN_MINUTES_IN_MILLIS = 30L * 60L * 1000L;
 
   private final WindDataService windDataService;
 
@@ -27,15 +27,17 @@ public class TimeIntervalController
       @RequestParam("from") @DateTimeFormat(iso = ISO.DATE) Date from,
       @RequestParam("to") @DateTimeFormat(iso = ISO.DATE) Date to,
       @RequestParam("speedFrom") Double speedFrom,
-      @RequestParam("speedTo") Double speedTo)
+      @RequestParam("speedTo") Double speedTo,
+      @RequestParam(value = "directionFrom", required = false) Double directionFrom,
+      @RequestParam(value = "directionTo", required = false) Double directionTo)
   {
     List<TimeRange> timeRangesWithAverageWindSpeedIn = windDataService.getTimeRangesWithAverageWindSpeedAndDirectionIn(
         from,
         to,
         speedFrom,
         speedTo,
-        0d,
-        360d,
+        directionFrom,
+        directionTo,
         TEN_MINUTES_IN_MILLIS,
         true);
     return timeRangesWithAverageWindSpeedIn;
