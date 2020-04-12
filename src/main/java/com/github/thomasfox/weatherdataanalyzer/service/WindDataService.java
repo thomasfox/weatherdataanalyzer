@@ -10,6 +10,8 @@ import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 import com.github.thomasfox.weatherdataanalyzer.repository.WindRepository;
+import com.github.thomasfox.weatherdataanalyzer.repository.model.DoubleValueCount;
+import com.github.thomasfox.weatherdataanalyzer.repository.model.IntValueCount;
 import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeData;
 import com.github.thomasfox.weatherdataanalyzer.service.model.TimeRange;
@@ -232,4 +234,29 @@ public class WindDataService
     return fftInput;
   }
 
+  public List<DoubleValueCount> getSpeedHistogramForTimeRange(Date start, Date end)
+  {
+    List<IntValueCount> dataPoints = windRepository.getSpeedHistogram(start, end);
+    List<DoubleValueCount> result = new ArrayList<>();
+    for (IntValueCount count : dataPoints)
+    {
+      result.add(new DoubleValueCount(
+          count.getValue() * Wind.WIND_SPEED_IN_KNOTS_DATABASE_FACTOR,
+          count.getCount()));
+    }
+    return result;
+  }
+
+  public List<DoubleValueCount> getDirectionHistogramForTimeRange(Date start, Date end)
+  {
+    List<IntValueCount> dataPoints = windRepository.getDirectionHistogram(start, end);
+    List<DoubleValueCount> result = new ArrayList<>();
+    for (IntValueCount count : dataPoints)
+    {
+      result.add(new DoubleValueCount(
+          count.getValue(),
+          count.getCount()));
+    }
+    return result;
+  }
 }
