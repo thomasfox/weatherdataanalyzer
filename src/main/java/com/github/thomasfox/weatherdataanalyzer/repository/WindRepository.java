@@ -12,6 +12,9 @@ import com.github.thomasfox.weatherdataanalyzer.repository.model.Wind;
 
 public interface WindRepository extends CrudRepository<Wind, Integer>
 {
+  @Query(value = "SELECT count(*) FROM Wind WHERE time >= :start AND time < :end")
+  Long count(@Param("start") Date start, @Param("end") Date end);
+
   @Query(value = "SELECT min(time) FROM Wind")
   Date getMinTime();
 
@@ -24,7 +27,7 @@ public interface WindRepository extends CrudRepository<Wind, Integer>
   @Query(value = "SELECT avg(direction) FROM Wind WHERE time >= :start AND time < :end")
   Double getAverageDirection(@Param("start") Date start, @Param("end") Date end);
 
-  List<Wind> findByTimeGreaterThanAndTimeLessThanEqual(Date start, Date end);
+  List<Wind> findByTimeGreaterThanAndTimeLessThanEqualOrderByTime(Date start, Date end);
 
   @Query(value = "SELECT new com.github.thomasfox.weatherdataanalyzer.repository.model.IntValueCount(speed, COUNT(speed))"
       + " FROM Wind"

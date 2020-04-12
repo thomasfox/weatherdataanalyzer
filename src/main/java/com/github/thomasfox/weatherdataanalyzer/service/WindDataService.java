@@ -37,6 +37,11 @@ public class WindDataService
     return windRepository.count();
   }
 
+  public long count(Date start, Date end)
+  {
+    return windRepository.count(start, end);
+  }
+
   public Date getMinTime()
   {
     return windRepository.getMinTime();
@@ -92,10 +97,9 @@ public class WindDataService
     return result;
   }
 
-
   public TimeRangeWithData getDataForTimeRange(Date start, Date end, Function<Wind, TimeData> windConverter)
   {
-    List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqual(start, end);
+    List<Wind> dataPoints = windRepository.findByTimeGreaterThanAndTimeLessThanEqualOrderByTime(start, end);
     List<TimeData> resultData = new ArrayList<>();
     for (Wind wind : dataPoints)
     {
@@ -142,7 +146,7 @@ public class WindDataService
     Map<TimeRange, List<Wind>> windIntervals = new LinkedHashMap<>();
     for (TimeRange timeRange: timeRanges)
     {
-      windIntervals.put(timeRange, windRepository.findByTimeGreaterThanAndTimeLessThanEqual(
+      windIntervals.put(timeRange, windRepository.findByTimeGreaterThanAndTimeLessThanEqualOrderByTime(
           new Date(timeRange.getStart()),
           new Date(timeRange.getEnd())));
     }
